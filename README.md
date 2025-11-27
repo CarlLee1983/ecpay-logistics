@@ -160,7 +160,7 @@ $response = $order->send();
 ### 建立宅配訂單
 
 ```php
-use CarlLee\EcPayLogistics\Parameter\HomeType;
+use CarlLee\EcPayLogistics\Parameter\LogisticsSubType;
 use CarlLee\EcPayLogistics\Parameter\Temperature;
 use CarlLee\EcPayLogistics\Parameter\Distance;
 use CarlLee\EcPayLogistics\Parameter\Specification;
@@ -168,7 +168,7 @@ use CarlLee\EcPayLogistics\Parameter\Specification;
 $order = $factory->make('home.create')
     ->setMerchantTradeNo('HOME_' . time())
     ->setLogisticsType(LogisticsType::HOME)
-    ->setLogisticsSubType(HomeType::TCAT)
+    ->setLogisticsSubType(LogisticsSubType::TCAT)
     ->setGoodsAmount(2000)
     ->setGoodsName('測試商品')
     ->setSenderName('寄件人')
