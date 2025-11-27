@@ -16,6 +16,33 @@ use CarlLee\EcPayLogistics\Infrastructure\CheckMacEncoder;
 class LogisticsNotify implements NotifyHandlerInterface
 {
     /**
+     * 預設成功狀態代碼。
+     *
+     * - 300: 訂單處理中（已出貨）
+     * - 2030: 配達完成（已取貨）
+     * - 2063: 買方已取貨（7-11）
+     * - 2067: 買方已付款（超取付款）
+     * - 2073: 買方已取貨（全家）
+     * - 3018: 貨物配達（宅配）
+     *
+     * @var string[]
+     */
+    public const array SUCCESS_CODES = ['300', '2030', '2063', '2067', '2073', '3018'];
+
+    /**
+     * 進行中狀態代碼。
+     *
+     * @var string[]
+     */
+    public const array PROCESSING_CODES = ['300', '310', '311', '325', '330', '2001'];
+
+    /**
+     * 失敗/異常狀態代碼。
+     *
+     * @var string[]
+     */
+    public const array FAILURE_CODES = ['2062', '2066', '2072', '2074', '3020', '3022'];
+    /**
      * CheckMac 編碼器。
      */
     private readonly CheckMacEncoder $encoder;
@@ -83,11 +110,40 @@ class LogisticsNotify implements NotifyHandlerInterface
      */
     public function isSuccess(): bool
     {
-        // 物流狀態代碼為數字，需要判斷是否為成功的狀態
-        // 常見成功狀態：300（已出貨）、2030（已取貨）等
-        $successCodes = ['300', '2030', '2063', '2067', '2073', '3018'];
+        return in_array($this->getRtnCode(), self::SUCCESS_CODES, true);
+    }
 
-        return in_array($this->getRtnCode(), $successCodes, true);
+    /**
+     * 檢查是否為成功狀態（可自訂代碼）。
+     *
+     * @param string[] $customCodes 自訂成功代碼（若為空則使用預設）
+     * @return bool
+     */
+    public function isSuccessWithCodes(array $customCodes = []): bool
+    {
+        $codes = empty($customCodes) ? self::SUCCESS_CODES : $customCodes;
+
+        return in_array($this->getRtnCode(), $codes, true);
+    }
+
+    /**
+     * 檢查是否為進行中狀態。
+     *
+     * @return bool
+     */
+    public function isProcessing(): bool
+    {
+        return in_array($this->getRtnCode(), self::PROCESSING_CODES, true);
+    }
+
+    /**
+     * 檢查是否為失敗/異常狀態。
+     *
+     * @return bool
+     */
+    public function isFailure(): bool
+    {
+        return in_array($this->getRtnCode(), self::FAILURE_CODES, true);
     }
 
     /**

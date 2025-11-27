@@ -8,7 +8,14 @@ use CarlLee\EcPayLogistics\Contracts\LogisticsInterface;
 use CarlLee\EcPayLogistics\Exceptions\LogisticsException;
 use CarlLee\EcPayLogistics\Infrastructure\CheckMacEncoder;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * 物流 Content 基礎類別。
@@ -70,6 +77,21 @@ abstract class Content implements LogisticsInterface
     protected string $serverUrl = 'https://logistics-stage.ecpay.com.tw';
 
     /**
+     * PSR-3 日誌記錄器。
+     */
+    protected LoggerInterface $logger;
+
+    /**
+     * HTTP 請求重試次數。
+     */
+    protected int $retryAttempts = 3;
+
+    /**
+     * HTTP 請求重試延遲（毫秒）。
+     */
+    protected int $retryDelay = 1000;
+
+    /**
      * 建立 Content 實例。
      *
      * @param string $merchantId 特店編號
@@ -78,6 +100,8 @@ abstract class Content implements LogisticsInterface
      */
     public function __construct(string $merchantId = '', string $hashKey = '', string $hashIV = '')
     {
+        $this->logger = new NullLogger();
+
         $this->setMerchantID($merchantId);
         $this->setHashKey($hashKey);
         $this->setHashIV($hashIV);
@@ -277,6 +301,45 @@ abstract class Content implements LogisticsInterface
     }
 
     /**
+     * 設定日誌記錄器。
+     *
+     * @param LoggerInterface $logger 日誌記錄器
+     * @return static
+     */
+    public function setLogger(LoggerInterface $logger): static
+    {
+        $this->logger = $logger;
+
+        return $this;
+    }
+
+    /**
+     * 設定 HTTP 請求重試次數。
+     *
+     * @param int $attempts 重試次數
+     * @return static
+     */
+    public function setRetryAttempts(int $attempts): static
+    {
+        $this->retryAttempts = max(0, $attempts);
+
+        return $this;
+    }
+
+    /**
+     * 設定 HTTP 請求重試延遲。
+     *
+     * @param int $milliseconds 延遲毫秒數
+     * @return static
+     */
+    public function setRetryDelay(int $milliseconds): static
+    {
+        $this->retryDelay = max(0, $milliseconds);
+
+        return $this;
+    }
+
+    /**
      * 設定 HTTP 用戶端。
      *
      * @param Client $client HTTP 用戶端
@@ -297,7 +360,18 @@ abstract class Content implements LogisticsInterface
     protected function getHttpClient(): Client
     {
         if ($this->httpClient === null) {
+            $stack = HandlerStack::create();
+
+            // 加入重試中間件
+            if ($this->retryAttempts > 0) {
+                $stack->push(Middleware::retry(
+                    $this->createRetryDecider(),
+                    $this->createRetryDelay()
+                ));
+            }
+
             $this->httpClient = new Client([
+                'handler' => $stack,
                 'base_uri' => $this->serverUrl,
                 'timeout' => 30,
                 'connect_timeout' => 10,
@@ -305,6 +379,66 @@ abstract class Content implements LogisticsInterface
         }
 
         return $this->httpClient;
+    }
+
+    /**
+     * 建立重試判斷函式。
+     *
+     * @return callable
+     */
+    protected function createRetryDecider(): callable
+    {
+        $maxRetries = $this->retryAttempts;
+        $logger = $this->logger;
+
+        return function (
+            int $retries,
+            RequestInterface $request,
+            ?ResponseInterface $response = null,
+            ?\Throwable $exception = null
+        ) use ($maxRetries, $logger): bool {
+            // 達到最大重試次數
+            if ($retries >= $maxRetries) {
+                return false;
+            }
+
+            // 連線錯誤時重試
+            if ($exception instanceof ConnectException) {
+                $logger->warning('ECPay API 連線失敗，準備重試', [
+                    'retry' => $retries + 1,
+                    'max_retries' => $maxRetries,
+                    'error' => $exception->getMessage(),
+                ]);
+                return true;
+            }
+
+            // 伺服器錯誤（5xx）時重試
+            if ($response !== null && $response->getStatusCode() >= 500) {
+                $logger->warning('ECPay API 伺服器錯誤，準備重試', [
+                    'retry' => $retries + 1,
+                    'max_retries' => $maxRetries,
+                    'status_code' => $response->getStatusCode(),
+                ]);
+                return true;
+            }
+
+            return false;
+        };
+    }
+
+    /**
+     * 建立重試延遲函式（指數退避）。
+     *
+     * @return callable
+     */
+    protected function createRetryDelay(): callable
+    {
+        $baseDelay = $this->retryDelay;
+
+        return function (int $retries) use ($baseDelay): int {
+            // 指數退避：1000ms, 2000ms, 4000ms...
+            return $baseDelay * (int) pow(2, $retries);
+        };
     }
 
     /**
@@ -349,6 +483,13 @@ abstract class Content implements LogisticsInterface
         $content = $this->getContent();
         $url = $this->serverUrl . $this->requestPath;
 
+        // 記錄請求
+        $this->logger->debug('ECPay API 請求', [
+            'url' => $url,
+            'path' => $this->requestPath,
+            'payload' => $this->maskSensitiveData($content),
+        ]);
+
         try {
             $response = $this->getHttpClient()->post($this->requestPath, [
                 'form_params' => $content,
@@ -356,10 +497,48 @@ abstract class Content implements LogisticsInterface
 
             $body = (string) $response->getBody();
 
+            // 記錄回應
+            $this->logger->debug('ECPay API 回應', [
+                'url' => $url,
+                'status_code' => $response->getStatusCode(),
+                'body' => $body,
+            ]);
+
             return new Response($body, $this->getEncoder());
         } catch (GuzzleException $e) {
+            // 記錄錯誤
+            $this->logger->error('ECPay API 請求失敗', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
             throw LogisticsException::httpError($e->getMessage());
         }
+    }
+
+    /**
+     * 遮蔽敏感資料（用於日誌記錄）。
+     *
+     * @param array<string, mixed> $data 原始資料
+     * @return array<string, mixed> 遮蔽後的資料
+     */
+    protected function maskSensitiveData(array $data): array
+    {
+        $sensitiveKeys = ['CheckMacValue', 'HashKey', 'HashIV'];
+
+        foreach ($sensitiveKeys as $key) {
+            if (isset($data[$key]) && is_string($data[$key])) {
+                $value = $data[$key];
+                $length = strlen($value);
+                if ($length > 8) {
+                    $data[$key] = substr($value, 0, 4) . str_repeat('*', $length - 8) . substr($value, -4);
+                } else {
+                    $data[$key] = str_repeat('*', $length);
+                }
+            }
+        }
+
+        return $data;
     }
 
     /**

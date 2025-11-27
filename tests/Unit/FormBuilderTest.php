@@ -140,4 +140,35 @@ class FormBuilderTest extends TestCase
 
         $this->assertStringContainsString('載入中...', $html);
     }
+
+    public function test_auto_submit_with_csp_nonce(): void
+    {
+        $nonce = 'test-nonce-123';
+        $html = $this->formBuilder->autoSubmit($this->storeMap, 'form', '載入中...', $nonce);
+
+        // 應包含帶有 nonce 的 style 標籤
+        $this->assertStringContainsString('nonce="test-nonce-123"', $html);
+
+        // style 和 script 標籤都應該有 nonce
+        $this->assertMatchesRegularExpression('/<style[^>]*nonce="test-nonce-123"/', $html);
+        $this->assertMatchesRegularExpression('/<script[^>]*nonce="test-nonce-123"/', $html);
+    }
+
+    public function test_auto_submit_without_csp_nonce(): void
+    {
+        $html = $this->formBuilder->autoSubmit($this->storeMap);
+
+        // 不應包含 nonce 屬性
+        $this->assertStringNotContainsString('nonce=', $html);
+    }
+
+    public function test_csp_nonce_is_properly_escaped(): void
+    {
+        $nonce = '<script>alert("xss")</script>';
+        $html = $this->formBuilder->autoSubmit($this->storeMap, 'form', '載入中...', $nonce);
+
+        // nonce 應被正確轉義
+        $this->assertStringNotContainsString('<script>alert("xss")</script>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+    }
 }

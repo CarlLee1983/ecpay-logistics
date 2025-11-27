@@ -124,4 +124,28 @@ class CheckMacEncoderTest extends TestCase
 
         $this->assertNotEquals($checkMac1, $checkMac2);
     }
+
+    public function test_throws_exception_with_empty_hash_key(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('HashKey 不可為空');
+
+        new CheckMacEncoder('', 'test_hash_iv');
+    }
+
+    public function test_throws_exception_with_empty_hash_iv(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('HashIV 不可為空');
+
+        new CheckMacEncoder('test_hash_key', '');
+    }
+
+    public function test_throws_exception_with_both_empty(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('HashKey 不可為空');
+
+        new CheckMacEncoder('', '');
+    }
 }

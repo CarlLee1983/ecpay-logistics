@@ -184,4 +184,58 @@ class LogisticsNotifyTest extends TestCase
 
         $this->assertEquals('default', $this->notify->get('NonExistentField', 'default'));
     }
+
+    public function test_is_success_with_custom_codes(): void
+    {
+        $encoder = new CheckMacEncoder($this->hashKey, $this->hashIV);
+        $data = $encoder->encodePayload(['RtnCode' => '999']);
+
+        $this->notify->verify($data);
+
+        // 預設應為失敗
+        $this->assertFalse($this->notify->isSuccess());
+
+        // 使用自訂代碼時應為成功
+        $this->assertTrue($this->notify->isSuccessWithCodes(['999']));
+    }
+
+    public function test_is_processing_for_processing_codes(): void
+    {
+        $encoder = new CheckMacEncoder($this->hashKey, $this->hashIV);
+
+        foreach (LogisticsNotify::PROCESSING_CODES as $code) {
+            $data = $encoder->encodePayload(['RtnCode' => $code]);
+            $this->notify->verify($data);
+            $this->assertTrue($this->notify->isProcessing(), "Code {$code} should be processing");
+        }
+    }
+
+    public function test_is_failure_for_failure_codes(): void
+    {
+        $encoder = new CheckMacEncoder($this->hashKey, $this->hashIV);
+
+        foreach (LogisticsNotify::FAILURE_CODES as $code) {
+            $data = $encoder->encodePayload(['RtnCode' => $code]);
+            $this->notify->verify($data);
+            $this->assertTrue($this->notify->isFailure(), "Code {$code} should be failure");
+        }
+    }
+
+    public function test_success_codes_constant_is_accessible(): void
+    {
+        $this->assertIsArray(LogisticsNotify::SUCCESS_CODES);
+        $this->assertContains('300', LogisticsNotify::SUCCESS_CODES);
+    }
+
+    public function test_processing_codes_constant_is_accessible(): void
+    {
+        $this->assertIsArray(LogisticsNotify::PROCESSING_CODES);
+        $this->assertNotEmpty(LogisticsNotify::PROCESSING_CODES);
+    }
+
+    public function test_failure_codes_constant_is_accessible(): void
+    {
+        $this->assertIsArray(LogisticsNotify::FAILURE_CODES);
+        $this->assertNotEmpty(LogisticsNotify::FAILURE_CODES);
+    }
 }

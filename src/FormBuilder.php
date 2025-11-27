@@ -69,15 +69,21 @@ class FormBuilder
      * @param Content $logistics 物流操作物件
      * @param string $formId 表單 ID
      * @param string $loadingText 載入提示文字
+     * @param string|null $nonce CSP nonce 值（用於 Content-Security-Policy）
      * @return string HTML 表單（含自動提交 JavaScript）
      */
     public function autoSubmit(
         Content $logistics,
         string $formId = 'ecpay-logistics-form',
-        string $loadingText = '正在導向綠界物流頁面，請稍候...'
+        string $loadingText = '正在導向綠界物流頁面，請稍候...',
+        ?string $nonce = null
     ): string {
         $actionUrl = $this->getActionUrl($logistics);
         $fields = $this->getFields($logistics);
+
+        $nonceAttr = $nonce !== null
+            ? sprintf(' nonce="%s"', htmlspecialchars($nonce, ENT_QUOTES, 'UTF-8'))
+            : '';
 
         $html = '<!DOCTYPE html>' . "\n";
         $html .= '<html>' . "\n";
@@ -85,7 +91,7 @@ class FormBuilder
         $html .= '    <meta charset="UTF-8">' . "\n";
         $html .= '    <meta name="viewport" content="width=device-width, initial-scale=1.0">' . "\n";
         $html .= '    <title>物流處理中</title>' . "\n";
-        $html .= '    <style>' . "\n";
+        $html .= sprintf('    <style%s>', $nonceAttr) . "\n";
         $html .= '        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }' . "\n";
         $html .= '        .loading { text-align: center; margin-top: 100px; }' . "\n";
         $html .= '        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #5cb85c; ';
@@ -119,7 +125,7 @@ class FormBuilder
         }
 
         $html .= '    </form>' . "\n";
-        $html .= '    <script>' . "\n";
+        $html .= sprintf('    <script%s>', $nonceAttr) . "\n";
         $html .= sprintf(
             '        document.getElementById("%s").submit();',
             htmlspecialchars($formId, ENT_QUOTES, 'UTF-8')

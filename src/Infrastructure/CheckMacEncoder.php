@@ -29,9 +29,18 @@ class CheckMacEncoder
      *
      * @param string $hashKey HashKey
      * @param string $hashIV HashIV
+     * @throws \InvalidArgumentException 當 HashKey 或 HashIV 為空時
      */
     public function __construct(string $hashKey, string $hashIV)
     {
+        if ($hashKey === '') {
+            throw new \InvalidArgumentException('HashKey 不可為空');
+        }
+
+        if ($hashIV === '') {
+            throw new \InvalidArgumentException('HashIV 不可為空');
+        }
+
         $this->hashKey = $hashKey;
         $this->hashIV = $hashIV;
     }

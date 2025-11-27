@@ -48,20 +48,84 @@ class Response
     }
 
     /**
+     * 解析錯誤訊息（若有）。
+     */
+    private ?string $parseError = null;
+
+    /**
      * 解析回應內容。
      */
     private function parseBody(): void
     {
+        // 空內容直接返回
+        if ($this->rawBody === '') {
+            $this->parseError = '回應內容為空';
+            return;
+        }
+
         // 嘗試解析為 URL 編碼格式
         parse_str($this->rawBody, $this->data);
 
-        // 如果解析失敗，嘗試 JSON
-        if (empty($this->data)) {
+        // 如果解析失敗或結果不合理，嘗試 JSON
+        if (empty($this->data) || $this->isInvalidUrlParsed()) {
             $decoded = json_decode($this->rawBody, true);
-            if (is_array($decoded)) {
+
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 $this->data = $decoded;
+                $this->parseError = null;
+            } elseif (empty($this->data)) {
+                $this->parseError = '無法解析回應內容：非有效的 URL 編碼或 JSON 格式';
             }
         }
+    }
+
+    /**
+     * 檢查 URL 解析結果是否無效。
+     *
+     * 當 parse_str 遇到非 URL 編碼的字串時，可能會產生不合理的結果。
+     *
+     * @return bool
+     */
+    private function isInvalidUrlParsed(): bool
+    {
+        // 如果解析後只有一個 key 且 value 為空，可能是解析錯誤
+        if (count($this->data) === 1) {
+            $keys = array_keys($this->data);
+            $firstKey = $keys[0];
+            $firstValue = $this->data[$firstKey];
+
+            // 若 key 包含 { 或 [，很可能是 JSON 被誤解析
+            if (str_contains($firstKey, '{') || str_contains($firstKey, '[')) {
+                return true;
+            }
+
+            // 若 value 為空字串，可能是解析失敗
+            if ($firstValue === '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 取得解析錯誤訊息。
+     *
+     * @return string|null
+     */
+    public function getParseError(): ?string
+    {
+        return $this->parseError;
+    }
+
+    /**
+     * 檢查是否有解析錯誤。
+     *
+     * @return bool
+     */
+    public function hasParseError(): bool
+    {
+        return $this->parseError !== null;
     }
 
     /**
