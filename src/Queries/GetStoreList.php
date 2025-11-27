@@ -24,6 +24,7 @@ class GetStoreList extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function initContent(): void
     {
         parent::initContent();
@@ -103,6 +104,7 @@ class GetStoreList extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function validation(): void
     {
         $this->validateBaseParams();

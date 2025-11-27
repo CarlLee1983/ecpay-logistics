@@ -27,6 +27,7 @@ class OpenStoreMap extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function initContent(): void
     {
         parent::initContent();
@@ -116,6 +117,7 @@ class OpenStoreMap extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function validation(): void
     {
         $this->validateBaseParams();

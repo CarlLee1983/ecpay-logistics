@@ -30,6 +30,7 @@ class ReturnHomeOrder extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function initContent(): void
     {
         parent::initContent();
@@ -289,6 +290,7 @@ class ReturnHomeOrder extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function validation(): void
     {
         $this->validateBaseParams();

@@ -20,6 +20,7 @@ class QueryLogisticsOrder extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function initContent(): void
     {
         parent::initContent();
@@ -56,6 +57,7 @@ class QueryLogisticsOrder extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function validation(): void
     {
         $this->validateBaseParams();

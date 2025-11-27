@@ -30,6 +30,7 @@ class PrintTradeDocument extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function initContent(): void
     {
         parent::initContent();
@@ -98,6 +99,7 @@ class PrintTradeDocument extends Content
     /**
      * @inheritDoc
      */
+    #[\Override]
     protected function validation(): void
     {
         $this->validateBaseParams();
